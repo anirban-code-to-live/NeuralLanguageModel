@@ -39,12 +39,12 @@ def _get_lstm_cell(num_units, keep_prob):
 
 if __name__ == '__main__':
     # # Server Settings
-    BATCH_SIZE = 50
+    BATCH_SIZE = 500
     NUM_STEPS = 30
     NUM_UNITS = 650
     NUM_LAYERS = 2
     KEEP_PROB = 0.35
-    MAX_GRAD_NORM = 1
+    MAX_GRAD_NORM = 10
     LEARNING_RATE = 0.001
     NUM_ITERATIONS = 1000
 
