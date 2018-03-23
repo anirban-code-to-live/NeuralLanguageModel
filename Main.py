@@ -38,10 +38,10 @@ def _get_lstm_cell(num_units, keep_prob):
 
 
 if __name__ == '__main__':
-    # Server Settings
-    BATCH_SIZE = 500
+    # # Server Settings
+    BATCH_SIZE = 100
     NUM_STEPS = 30
-    NUM_UNITS = 200
+    NUM_UNITS = 300
     NUM_LAYERS = 2
     KEEP_PROB = 0.8
     MAX_GRAD_NORM = 1
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     # print(len(validation_data))
     # print(len(test_data))
 
-    # Local Settings
+    # # Local Settings
     # BATCH_SIZE = 100
     # NUM_STEPS = 10
     # NUM_UNITS = 200
