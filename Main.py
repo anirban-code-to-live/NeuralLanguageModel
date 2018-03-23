@@ -5,6 +5,8 @@ from tensorflow.contrib.rnn import DropoutWrapper
 import numpy as np
 import os
 import shutil
+import re
+from CharacterModel import CharacterModel
 
 
 def _read_words(sentences):
@@ -23,7 +25,8 @@ def _build_vocab(sentences):
     word_count_pairs = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
     words, _ = list(zip(*word_count_pairs))
     word_to_id = dict(zip(words, range(len(words))))
-    return word_to_id
+    id_to_word = dict((i, c) for i, c in enumerate(words))
+    return word_to_id, id_to_word
 
 
 def _file_to_word_ids(sentences, word_to_id):
@@ -38,22 +41,22 @@ def _get_lstm_cell(num_units, keep_prob):
 
 
 if __name__ == '__main__':
-    # # Server Settings
-    BATCH_SIZE = 100
+    # Server Settings
+    BATCH_SIZE = 200
     NUM_STEPS = 30
     NUM_UNITS = 650
     NUM_LAYERS = 2
     KEEP_PROB = 0.35
     MAX_GRAD_NORM = 5
     LEARNING_RATE = 0.001
-    NUM_ITERATIONS = 10000
+    NUM_ITERATIONS = 20000
 
     sentences_gutenberg = gutenberg.sents()
     guten_sents_count = len(sentences_gutenberg)
     train_data_size = int(0.4 * guten_sents_count)
     validation_data_size = int(0.2 * guten_sents_count)
     test_data_size = int(0.2 * guten_sents_count)
-    # print(guten_sents_count)
+    print(guten_sents_count)
     # print(train_data_size)
     # print(validation_data_size)
     # print(test_data_size)
@@ -67,7 +70,7 @@ if __name__ == '__main__':
     # print(len(test_data))
 
     # # Local Settings
-    # BATCH_SIZE = 100
+    # BATCH_SIZE = 20
     # NUM_STEPS = 10
     # NUM_UNITS = 200
     # NUM_LAYERS = 2
@@ -79,20 +82,22 @@ if __name__ == '__main__':
     # sentences_gutenberg = gutenberg.sents()
     # # print(len(sentences_gutenberg))
     #
-    # train_data = sentences_gutenberg[0:100]
+    # train_data = sentences_gutenberg[0:1000]
     # test_data = sentences_gutenberg[100:150]
     # validation_data = sentences_gutenberg[150:200]
     # print(len(train_data))
     # print(train_data[3])
 
     word_list_train, word_count_train = _read_words(train_data)
-    word_to_id_train = _build_vocab(train_data)
+    word_to_id_train, id_to_word_train = _build_vocab(train_data)
     vocab_size = len(word_to_id_train)
     print('Vocab size :: ' + str(vocab_size))
     # print(word_to_id_train['<eos>'])
     train_data_id = _file_to_word_ids(train_data, word_to_id_train)
+    print(len(train_data_id))
 
     print(word_to_id_train)
+    print(id_to_word_train)
 
     # Start: Code for training
     train_data_tensor = tf.convert_to_tensor(train_data_id, name="train_data_tensor", dtype=tf.int64)
@@ -114,7 +119,6 @@ if __name__ == '__main__':
     y = tf.strided_slice(data, [0, i * NUM_STEPS + 1],
                          [BATCH_SIZE, (i + 1) * NUM_STEPS + 1])
     y.set_shape([BATCH_SIZE, NUM_STEPS])
-
     # End: code for training
 
     # # Start : Code for validation
@@ -143,6 +147,12 @@ if __name__ == '__main__':
     # y.set_shape([BATCH_SIZE, NUM_STEPS])
     #
     # # end: Code for validation
+
+    # # Start: code for sentence generation
+    # SENTENCE_LENGTH = 10
+    # seed_sentence = [word_to_id_train['<eos>']] * SENTENCE_LENGTH
+    # x = tf.placeholder(dtype=tf.int64, shape=(None, None))
+    # # End: Code for sentence generation
 
     # print(x.shape, y.shape)
     # print(x[0])
@@ -175,6 +185,7 @@ if __name__ == '__main__':
     logits = tf.reshape(logits, [BATCH_SIZE, NUM_STEPS, vocab_size])
 
     prediction = tf.nn.softmax(logits)
+    word_index = tf.argmax(prediction, 2)
     correct_pred = tf.equal(tf.argmax(prediction, 2), y)
     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
@@ -196,7 +207,7 @@ if __name__ == '__main__':
     _lr = tf.Variable(0.0, trainable=False)
     tvars = tf.trainable_variables()
     grads, _ = tf.clip_by_global_norm(tf.gradients(cost, tvars), MAX_GRAD_NORM)
-    optimizer = tf.train.GradientDescentOptimizer(_lr)
+    optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
     _train_op = optimizer.apply_gradients(
         zip(grads, tvars),
         global_step=tf.train.get_or_create_global_step())
@@ -227,7 +238,7 @@ if __name__ == '__main__':
     # # cost = sess.run(cost)
     # # print(cost)
     #
-    for epoch in range(NUM_ITERATIONS):
+    for epoch in range(NUM_ITERATIONS*1000):
         loss_history = []
 
         _, train_loss, i_, x_, accuracy_ = sess.run((update_step, cost, i, x, accuracy))
@@ -239,7 +250,6 @@ if __name__ == '__main__':
             print('Epoch: ' + str(epoch + 1), ' Loss: ' + str(np.mean(loss_history)))
             print(accuracy_)
 
-
     # Save model
     relative_path_parent_dir = os.path.dirname(__file__)
     print(relative_path_parent_dir)
@@ -249,6 +259,7 @@ if __name__ == '__main__':
     saver = tf.train.Saver()
     saver.save(sess=sess, save_path=export_dir + '/session', write_meta_graph=False)
 
+    # Restore Model
     # sess = tf.Session()
     # tf.train.start_queue_runners(sess=sess)
     # export_dir = os.path.join(relative_path_parent_dir, 'saved_model_data')
@@ -270,5 +281,25 @@ if __name__ == '__main__':
     #     if (epoch + 1) % 2 == 0:
     #         print('Epoch: ' + str(epoch + 1), ' Loss: ' + str(np.mean(loss_history)))
     #         # print('Epoch: ' + str(epoch + 1), ' Loss: ' + str(np.mean(accuracy_history)))
+
+    # # Code for sentence generation
+    # x_input = np.zeros((BATCH_SIZE, NUM_STEPS))
+    # words_generated = []
+    # for i in range(SENTENCE_LENGTH):
+    #     for t, word in enumerate(seed_sentence):
+    #         x_input[0, NUM_STEPS - SENTENCE_LENGTH + t] = word
+    #     word_index_ = sess.run(word_index, {x: x_input})
+    #     predicted_word = id_to_word_train[word_index_[0, -1]]
+    #     if predicted_word != '<eos>':
+    #         words_generated.append(predicted_word)
+    #         seed_sentence = seed_sentence[1:] + list([word_index_[0, -1]])
+    #     # if predicted_word == '<eos>':
+    #     #     break
+    # # print(words_generated)
+    # sentence_generated = ' '.join(words_generated)
+    # print(sentence_generated)
+
+
+    # character_model = CharacterModel()
 
 
