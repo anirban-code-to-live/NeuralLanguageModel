@@ -41,6 +41,11 @@ def _get_lstm_cell(num_units, keep_prob):
     return cell
 
 
+def _calculate_perplexity(cost, num_steps):
+    perplexity = np.exp(cost / num_steps)
+    return perplexity
+
+
 class CharacterModel:
     def __init__(self):
         guten_words = gutenberg.words()
@@ -51,52 +56,52 @@ class CharacterModel:
         vocab_size = len(char_to_id)
         print(vocab_size)
 
-        # # # Server Settings
-        # # BATCH_SIZE = 100
-        # # NUM_STEPS = 30
-        # # NUM_UNITS = 650
-        # # NUM_LAYERS = 2
-        # # KEEP_PROB = 0.35
-        # # MAX_GRAD_NORM = 5
-        # # LEARNING_RATE = 0.001
-        # # NUM_ITERATIONS = 10000
-        # #
-        # # sentences_gutenberg = gutenberg.sents()
-        # # guten_sents_count = len(sentences_gutenberg)
-        # # train_data_size = int(0.4 * guten_sents_count)
-        # # validation_data_size = int(0.2 * guten_sents_count)
-        # # test_data_size = int(0.2 * guten_sents_count)
-        # # # print(guten_sents_count)
-        # # # print(train_data_size)
-        # # # print(validation_data_size)
-        # # # print(test_data_size)
-        # #
-        # # train_data = sentences_gutenberg[0:train_data_size]
-        # # validation_data = sentences_gutenberg[train_data_size:train_data_size + validation_data_size]
-        # # test_data = sentences_gutenberg[train_data_size + validation_data_size:train_data_size + validation_data_size + test_data_size]
+        # Server Settings
+        BATCH_SIZE = 20
+        NUM_STEPS = 30
+        NUM_UNITS = 650
+        NUM_LAYERS = 2
+        KEEP_PROB = 0.35
+        MAX_GRAD_NORM = 5
+        LEARNING_RATE = 0.001
+        NUM_ITERATIONS = 20000
+
+        words_gutenberg = gutenberg.words('shakespeare-hamlet.txt')
+        guten_words_count = len(words_gutenberg)
+        train_data_size = int(0.6 * guten_words_count)
+        validation_data_size = int(0.1 * guten_words_count)
+        test_data_size = int(0.1 * guten_words_count)
+        # print(guten_sents_count)
+        print(train_data_size)
+        # print(validation_data_size)
+        # print(test_data_size)
+
+        train_data = words_gutenberg[0:train_data_size]
+        validation_data = words_gutenberg[train_data_size:train_data_size + validation_data_size]
+        test_data = words_gutenberg[train_data_size + validation_data_size:train_data_size + validation_data_size + test_data_size]
         # #
         # # # print(len(train_data))
         # # # print(len(validation_data))
         # # # print(len(test_data))
         #
         # Local Settings
-        BATCH_SIZE = 20
-        NUM_STEPS = 5
-        NUM_UNITS = 200
-        NUM_LAYERS = 2
-        KEEP_PROB = 0.8
-        MAX_GRAD_NORM = 1
-        LEARNING_RATE = 0.001
-        NUM_ITERATIONS = 10
-
-        words_gutenberg = gutenberg.words()
-        # print(len(sentences_gutenberg))
-
-        train_data = words_gutenberg[0:1000]
-        test_data = words_gutenberg[100:150]
-        validation_data = words_gutenberg[150:200]
-        print(len(train_data))
-        print(train_data[3])
+        # BATCH_SIZE = 1
+        # NUM_STEPS = 35
+        # NUM_UNITS = 200
+        # NUM_LAYERS = 2
+        # KEEP_PROB = 0.35
+        # MAX_GRAD_NORM = 1
+        # LEARNING_RATE = 0.001
+        # NUM_ITERATIONS = 1000
+        #
+        # words_gutenberg = gutenberg.words()
+        # # print(len(sentences_gutenberg))
+        #
+        # train_data = words_gutenberg[0:10000]
+        # test_data = words_gutenberg[100:150]
+        # validation_data = words_gutenberg[150:200]
+        # print(len(train_data))
+        # # print(train_data[3])
 
         char_list_train, char_count_train = _read_characters(train_data)
         char_to_id_train, id_to_char_train = _build_vocab(train_data)
@@ -105,8 +110,9 @@ class CharacterModel:
         # print(word_to_id_train['<eos>'])
         train_data_id = _file_to_char_ids(train_data, char_to_id_train)
 
-        print(char_to_id_train)
-        print(id_to_char_train)
+        # print(char_to_id_train)
+        # print(id_to_char_train)
+        print(len(train_data_id))
 
         # Start: Code for training
         train_data_tensor = tf.convert_to_tensor(train_data_id, name="train_data_tensor", dtype=tf.int64)
@@ -158,7 +164,7 @@ class CharacterModel:
         # # # end: Code for validation
         #
         # Start: code for sentence generation
-        # SENTENCE_LENGTH = 10
+        # SENTENCE_LENGTH = 100
         # seed_sentence = [char_to_id_train[' ']] * SENTENCE_LENGTH
         # x = tf.placeholder(dtype=tf.int64, shape=(None, None))
         # End: Code for sentence generation
@@ -216,7 +222,7 @@ class CharacterModel:
         _lr = tf.Variable(0.0, trainable=False)
         tvars = tf.trainable_variables()
         grads, _ = tf.clip_by_global_norm(tf.gradients(cost, tvars), MAX_GRAD_NORM)
-        optimizer = tf.train.GradientDescentOptimizer(_lr)
+        optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
         _train_op = optimizer.apply_gradients(
             zip(grads, tvars),
             global_step=tf.train.get_or_create_global_step())
@@ -233,21 +239,13 @@ class CharacterModel:
         optimizer = tf.train.AdamOptimizer(LEARNING_RATE)
         update_step = optimizer.apply_gradients(zip(clipped_gradients, params))
 
-        sess = tf.Session()
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        sess = tf.Session(config=config)
         sess.run(tf.global_variables_initializer())
         tf.train.start_queue_runners(sess=sess)
-        # # train_data_len, batch_len, epoch_size, i_, x, y = sess.run([train_data_len, batch_len, epoch_size, i, x, y])
-        # # print(train_data_len, batch_len, epoch_size, i_)
-        # # inputs = sess.run(inputs)
-        # # print(inputs.shape)
-        # # output = sess.run(output)
-        # # print(output.shape)
-        # # logits = sess.run(logits)
-        # # print(logits.shape)
-        # # cost = sess.run(cost)
-        # # print(cost)
-        #
-        for epoch in range(NUM_ITERATIONS*200):
+
+        for epoch in range(NUM_ITERATIONS):
             loss_history = []
 
             _, train_loss, i_, x_, accuracy_ = sess.run((update_step, cost, i, x, accuracy))
@@ -261,7 +259,7 @@ class CharacterModel:
 
         # # # Save model
         relative_path_parent_dir = os.path.dirname(__file__)
-        print(relative_path_parent_dir)
+        # print(relative_path_parent_dir)
         if os.path.isdir(os.path.join(relative_path_parent_dir, 'char_model_data')):
             shutil.rmtree(os.path.join(relative_path_parent_dir, 'char_model_data'))
         export_dir = os.path.join(relative_path_parent_dir, 'char_model_data')
@@ -292,12 +290,17 @@ class CharacterModel:
         #
         # # Code for sentence generation
         # x_input = np.zeros((BATCH_SIZE, NUM_STEPS))
-        # sentence_generated = []
+        # characters_generated = []
         # for i in range(SENTENCE_LENGTH):
-        #     for t, word in enumerate(seed_sentence):
-        #         x_input[0, NUM_STEPS - SENTENCE_LENGTH + t] = word
+        #     for t, char in enumerate(seed_sentence):
+        #         if t >= SENTENCE_LENGTH - NUM_STEPS:
+        #             x_input[0, t - SENTENCE_LENGTH + NUM_STEPS] = char
         #     char_index_ = sess.run(char_index, {x: x_input})
-        #     predicted_word = id_to_char_train[char_index_[0, -1]]
-        #     sentence_generated.append(predicted_word)
+        #     predicted_char = id_to_char_train[char_index_[0, -1]]
+        #     characters_generated.append(predicted_char)
         #     seed_sentence = seed_sentence[1:] + list([char_index_[0, -1]])
+        #     if predicted_char == ' ' and len(characters_generated) > 50:
+        #         break
+        #
+        # sentence_generated = ''.join(characters_generated)
         # print(sentence_generated)
